@@ -84,18 +84,31 @@ def move():
         possible_directions.remove('down')
 
     # Don't move into the wall
-    if (head.left().x == 0 and 'left' in possible_directions):
+    if (head.left().x < 0 and 'left' in possible_directions):
         possible_directions.remove('left')
-    if (head.right().x == dim.x and 'right' in possible_directions):
+    if (head.right().x > dim.x and 'right' in possible_directions):
         possible_directions.remove('right')
-    if (head.down().y == dim.y and 'down' in possible_directions):
+    if (head.down().y > dim.y and 'down' in possible_directions):
         possible_directions.remove('down')
-    if (head.up().y == 0 and 'up' in possible_directions):
+    if (head.up().y < 0 and 'up' in possible_directions):
         possible_directions.remove('up')
+
+    safe_directions = possible_directions[:]
 
     # Move towards the first food
     food = Point(data['food']['data'][0]['x'],
                  data['food']['data'][0]['y'])
+    if (head.x == food.x):
+        if ('left' in possible_directions):
+            possible_directions.remove('left')
+        if ('right' in possible_directions):
+            possible_directions.remove('right')
+    elif (head.y == food.y):
+        if ('up' in possible_directions):
+            possible_directions.remove('up')
+        if ('down' in possible_directions):
+            possible_directions.remove('down')
+
     if (head.x > food.x and 'right' in possible_directions):
         possible_directions.remove('right')
     if (head.x < food.x and 'left' in possible_directions):
@@ -105,8 +118,18 @@ def move():
     if (head.y > food.y and 'down' in possible_directions):
         possible_directions.remove('down')
 
+    smart_directions = possible_directions[:]
+    
+    # Prioritize safe moves if no smart move available
+    if (len(smart_directions) == 0):
+        move = random.choice(safe_directions)
+    elif (len(smart_directions) == 1):
+        move = smart_directions.pop()
+    else:
+        move = random.choice(smart_directions)
+
     return {
-        'move': random.choice(possible_directions),
+        'move': move,
         'taunt': 'battlesnake-python!'
     }
 
