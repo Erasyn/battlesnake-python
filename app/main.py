@@ -2,6 +2,77 @@ import bottle
 import os
 import random
 
+class Board:
+    '''Simple class to represent the board'''
+
+    def __init__(self, data):
+        '''Sets the board information'''
+        self.width = data['width']
+        self.height = data['height']
+
+    def is_outside(self, p):
+        '''Return true if p is in-bounds'''
+        return p.x < 0 or p.y < 0 or p.x >= self.width or p.y >= self.height
+
+class Snake:
+    '''Simple class to represent the snake'''
+
+    def __init__(self, data):
+        '''Sets up the snakes information'''
+        self.head = Point(data['you']['body']['data'][0]['x'], 
+                          data['you']['body']['data'][0]['y'])
+
+        self.body = []
+        for b in data['you']['body']['data'][1:]:
+            self.body.append(Point(b['x'], b['y']))
+
+        self.safe_moves = ['up', 'down', 'left', 'right']
+        self.preferred_moves = ['up', 'down', 'left', 'right']
+
+    def dont_move(self, direction):
+        '''Update the safe moves'''
+        if (direction in self.safe_moves):
+            self.safe_moves.remove(direction)
+
+    def try_not_to_move(self, direction):
+        '''Update the preferred moves'''
+        if (direction in self.preferred_moves):
+            self.preferred_moves.remove(direction)
+
+    def prevent_collisions(self, board):
+        '''Remove moves that will collide (with anything)'''
+        if (self.head.right() in self.body or 
+                board.is_outside(self.head.right())):
+            self.dont_move('right')
+        if (self.head.left() in self.body or 
+                board.is_outside(self.head.left())):
+            self.dont_move('left')
+        if (self.head.up() in self.body or 
+                board.is_outside(self.head.up())):
+            self.dont_move('up')
+        if (self.head.down() in self.body or 
+                board.is_outside(self.head.down())):
+            self.dont_move('down')
+
+        self.preferred_moves = self.safe_moves[:]
+
+    def prefer_moves_towards(self, p):
+        '''Remove moves that take you away from p'''
+        if (self.head.x >= p.x):
+            self.try_not_to_move('right')
+        if (self.head.x <= p.x):
+            self.try_not_to_move('left')
+        if (self.head.y <= p.y):
+            self.try_not_to_move('up')
+        if (self.head.y >= p.y):
+            self.try_not_to_move('down')
+
+    def get_next_move(self):
+        '''Return a preferred move, or just a safe one'''
+        if (len(self.preferred_moves)):
+            return self.preferred_moves.pop()
+        return self.safe_moves.pop()
+
 class Point:
     '''Simple class for 2d points'''
 
@@ -60,73 +131,15 @@ def start():
 @bottle.post('/move')
 def move():
     data = bottle.request.json
-
-    dim = Point(data['width'], data['height'])
     
-    head = Point(data['you']['body']['data'][0]['x'], 
-                 data['you']['body']['data'][0]['y'])
+    board = Board(data)
+    snake = Snake(data)
+    food = Point(data['food']['data'][0]['x'], # Only works with a single 
+                 data['food']['data'][0]['y']) # food right now...
 
-    body_data = data['you']['body']['data'][1:]
-    body = []
-    for b in body_data:
-        body.append(Point(b['x'], b['y']))
-
-    possible_directions = ['up', 'down', 'left', 'right']
-
-    # Don't move into your body
-    if (head.right() in body and 'right' in possible_directions):
-        possible_directions.remove('right')
-    if (head.left() in body and 'left' in possible_directions):
-        possible_directions.remove('left')
-    if (head.up() in body and 'up' in possible_directions):
-        possible_directions.remove('up')
-    if (head.down() in body and 'down' in possible_directions):
-        possible_directions.remove('down')
-
-    # Don't move into the wall
-    if (head.left().x < 0 and 'left' in possible_directions):
-        possible_directions.remove('left')
-    if (head.right().x > dim.x and 'right' in possible_directions):
-        possible_directions.remove('right')
-    if (head.down().y > dim.y and 'down' in possible_directions):
-        possible_directions.remove('down')
-    if (head.up().y < 0 and 'up' in possible_directions):
-        possible_directions.remove('up')
-
-    safe_directions = possible_directions[:]
-
-    # Move towards the first food
-    food = Point(data['food']['data'][0]['x'],
-                 data['food']['data'][0]['y'])
-    if (head.x == food.x):
-        if ('left' in possible_directions):
-            possible_directions.remove('left')
-        if ('right' in possible_directions):
-            possible_directions.remove('right')
-    elif (head.y == food.y):
-        if ('up' in possible_directions):
-            possible_directions.remove('up')
-        if ('down' in possible_directions):
-            possible_directions.remove('down')
-
-    if (head.x > food.x and 'right' in possible_directions):
-        possible_directions.remove('right')
-    if (head.x < food.x and 'left' in possible_directions):
-        possible_directions.remove('left')
-    if (head.y < food.y and 'up' in possible_directions):
-        possible_directions.remove('up')
-    if (head.y > food.y and 'down' in possible_directions):
-        possible_directions.remove('down')
-
-    smart_directions = possible_directions[:]
-    
-    # Prioritize safe moves if no smart move available
-    if (len(smart_directions) == 0):
-        move = random.choice(safe_directions)
-    elif (len(smart_directions) == 1):
-        move = smart_directions.pop()
-    else:
-        move = random.choice(smart_directions)
+    snake.prevent_collisions(board)
+    snake.prefer_moves_towards(food)
+    move = snake.get_next_move()
 
     return {
         'move': move,
