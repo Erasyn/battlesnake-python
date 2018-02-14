@@ -1,7 +1,7 @@
 # Strategy 
 
-Never hit walls.
-Never trap yourself.
+Never hit walls/body (*Done*)
+Never trap yourself 
 aka flood fill and never go into a smaller area than you are in
 
 If length is less than 8: 
