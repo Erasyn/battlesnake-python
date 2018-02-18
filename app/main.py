@@ -2,6 +2,11 @@ import bottle
 import os
 import random
 
+# TODO (Roughly in order of difficulty):
+# - Avoid entering same square as snake longer than you
+# - Better pathfinding towards goal
+# - implement food circling
+
 class Board:
     '''Simple class to represent the board'''
 
@@ -16,7 +21,9 @@ class Board:
         for p in data['you']['body']['data']:
             self.obstacles.append(Point(p['x'], p['y']))
 
-        # TODO: Add other snake's bodies to obstacles
+        for snake in data['snakes']['data']:
+            for p in snake['body']['data']:
+                self.obstacles.append(Point(p['x'], p['y']))
 
         for p in data['food']['data']:
             self.food.append(Point(p['x'], p['y']))
@@ -50,6 +57,9 @@ class Snake:
         '''Sets up the snakes information'''
         self.board = Board(data)
 
+        self.length = data['you']['length']
+        self.health = data['you']['health']
+
         self.head = Point(data['you']['body']['data'][0]['x'], 
                           data['you']['body']['data'][0]['y'])
 
@@ -60,20 +70,52 @@ class Snake:
 
     def eat_food(self):
         '''High level goal to eat the food we are closest to'''
+        # TODO: Maybe this goal should be told what food to eat, so that you
+        # can e.g. program some logic about which to go for at a higher level
         food = self.head.closest(self.board.food)
         self.move_towards(food)
 
-    def move_random(self):
-        '''High level goal to move to a random place on the board'''
-        point = 
+    def random_walk(self):
+        '''High level goal to perform a random walk (for testing)'''
+        move = random.choice(['up', 'down', 'left', 'right'])
+        self.move_towards(self.head.get(move))
+
+    def circle_point(self, point):
+        '''High level goal to circle a point, head to tail'''
+        # TODO: This seems useful but tough to program. Need to think about it.
+
+        # - take your length, divide it by 4, round up
+        # - that's the length of the sides of your path
+        # - I don't think that works, but somehow find the size of the sides 
+        # of the smallest square you can make
+        # - Calculate the path of that size around the desired point
+        # - If you aren't already on that path, you need to move there
+        # - If you are, its 'easy' to calculate your next move
+        # - either cw, or ccw
+        # - but you also need to avoid obstacles while you are circling...
+
+        pass
     
     def move_towards(self, g):
-        # TODO: Now you can make this smarter, without worry about about
-        # anything except best way to move between two points on the board.
+        '''Updates next_move to move efficiently towards g'''
+
+        # TODO: Right this is using a kind of sloppy ad-hoc movement algorithm,
+        # but can easily be improved or swapped out with e.g. A* wihout 
+        # worrying about the higher level behavior of the snake.
+
         self.safe_moves = ['up', 'down', 'left', 'right'] # Won't kill you
+        self.smart_moves = [] # Don't trap yourself
         self.preferred_moves = [] # Move you closer to goal
         self.prevent_collisions()
+        self.dont_trap_self()
         self.prefer_moves_towards(g)
+
+        if (len(self.preferred_moves)):
+            self.next_move = self.preferred_moves.pop()
+        elif (len(self.smart_moves)):
+            self.next_move = self.smart_moves.pop()
+        else:
+            self.next_move = self.safe_moves.pop()
 
     def dont_move(self, direction):
         '''Update the safe moves'''
@@ -99,10 +141,22 @@ class Snake:
         if (self.head.down() in self.body or 
                 self.board.is_outside(self.head.down())):
             self.dont_move('down')
+    
+    def dont_trap_self(self):
+        self.smart_moves = self.safe_moves[:]
+
+        areas = {}
+        for move in self.smart_moves:
+            areas[move] = self.board.fill_size(self.head.get(move))
+
+        best_area = max(areas.values())
+        for move in areas:
+            if areas[move] != best_area:
+                self.smart_moves.remove(move)
 
     def prefer_moves_towards(self, p):
         '''Remove moves that take you away from p'''
-        self.preferred_moves = self.safe_moves[:]
+        self.preferred_moves = self.smart_moves[:]
 
         if (self.head.x >= p.x):
             self.try_not_to_move('right')
@@ -113,22 +167,7 @@ class Snake:
         if (self.head.y >= p.y):
             self.try_not_to_move('down')
 
-    def dont_trap_self(self, board):
-        smart_moves = self.safe_moves[:]
-
-        for m in smart_moves:
-            pos = self.head.get(m) 
-            if (board.fill_size(pos) < len(self.body)):
-                smart_moves.remove(m)
-        self.preferred_moves = list(set(self.preferred_moves) & set(smart_moves))
             
-
-    def get_next_move(self):
-        '''Return a preferred move, or just a safe one'''
-        if (len(self.preferred_moves)):
-            return self.preferred_moves.pop()
-        return self.safe_moves.pop()
-
 class Point:
     '''Simple class for 2d points'''
 
@@ -144,10 +183,9 @@ class Point:
     def closest(self, l):
         '''Returns Point in l closest to self'''
         closest = l[0]
-        if (len(l) > 1):
-            for p in l:
-                if (self.dist(p) < self.dist(closest)):
-                    closest = p
+        for point in l:
+            if (self.dist(point) < self.dist(closest)):
+                closest = point
         return closest
 
     def dist(self, other):
@@ -214,12 +252,16 @@ def start():
 def move():
     data = bottle.request.json
     
-    # Setup our snake and define its goals
+    # Set-up our snake and define its goals
+    # Currently just using some example behavior
     snake = Snake(data)
-    snake.eat_food()
+    if (snake.health < 200):
+        snake.eat_food()
+    else:
+        snake.random_walk()
 
     return {
-        'move': snake.get_next_move(),
+        'move': snake.next_move,
         'taunt': 'battlesnake-python!'
     }
 
