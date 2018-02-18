@@ -10,10 +10,16 @@ class Board:
         self.width = data['width']
         self.height = data['height']
         self.obstacles = []
+        self.food = []
         self.flood_visited = [] 
 
-        for s in data['you']['body']['data']:
-            self.obstacles.append(Point(s['x'], s['y']))
+        for p in data['you']['body']['data']:
+            self.obstacles.append(Point(p['x'], p['y']))
+
+        # TODO: Add other snake's bodies to obstacles
+
+        for p in data['food']['data']:
+            self.food.append(Point(p['x'], p['y']))
 
     def is_outside(self, p):
         '''Return true if p is out-of-bounds'''
@@ -42,6 +48,8 @@ class Snake:
 
     def __init__(self, data):
         '''Sets up the snakes information'''
+        self.board = Board(data)
+
         self.head = Point(data['you']['body']['data'][0]['x'], 
                           data['you']['body']['data'][0]['y'])
 
@@ -49,8 +57,23 @@ class Snake:
         for b in data['you']['body']['data'][1:]:
             self.body.append(Point(b['x'], b['y']))
 
+
+    def eat_food(self):
+        '''High level goal to eat the food we are closest to'''
+        food = self.head.closest(self.board.food)
+        self.move_towards(food)
+
+    def move_random(self):
+        '''High level goal to move to a random place on the board'''
+        point = 
+    
+    def move_towards(self, g):
+        # TODO: Now you can make this smarter, without worry about about
+        # anything except best way to move between two points on the board.
         self.safe_moves = ['up', 'down', 'left', 'right'] # Won't kill you
         self.preferred_moves = [] # Move you closer to goal
+        self.prevent_collisions()
+        self.prefer_moves_towards(g)
 
     def dont_move(self, direction):
         '''Update the safe moves'''
@@ -62,19 +85,19 @@ class Snake:
         if (direction in self.preferred_moves):
             self.preferred_moves.remove(direction)
 
-    def prevent_collisions(self, board):
+    def prevent_collisions(self):
         '''Remove moves that will collide (with anything)'''
         if (self.head.right() in self.body or 
-                board.is_outside(self.head.right())):
+                self.board.is_outside(self.head.right())):
             self.dont_move('right')
         if (self.head.left() in self.body or 
-                board.is_outside(self.head.left())):
+                self.board.is_outside(self.head.left())):
             self.dont_move('left')
         if (self.head.up() in self.body or 
-                board.is_outside(self.head.up())):
+                self.board.is_outside(self.head.up())):
             self.dont_move('up')
         if (self.head.down() in self.body or 
-                board.is_outside(self.head.down())):
+                self.board.is_outside(self.head.down())):
             self.dont_move('down')
 
     def prefer_moves_towards(self, p):
@@ -117,6 +140,19 @@ class Point:
     def __eq__(self, other):
         '''Test equality'''
         return self.x == other.x and self.y == other.y
+
+    def closest(self, l):
+        '''Returns Point in l closest to self'''
+        closest = l[0]
+        if (len(l) > 1):
+            for p in l:
+                if (self.dist(p) < self.dist(closest)):
+                    closest = p
+        return closest
+
+    def dist(self, other):
+        '''Calculate Manhattan distance to other point'''
+        return abs(self.x - other.x) + abs(self.y - other.y)
 
     def get(self, direction):
         '''get an adjacent point by passing a string'''
@@ -178,20 +214,12 @@ def start():
 def move():
     data = bottle.request.json
     
-    # Set up our objects
-    board = Board(data)
+    # Setup our snake and define its goals
     snake = Snake(data)
-    food = Point(data['food']['data'][0]['x'],
-                 data['food']['data'][0]['y'])
-
-    # Enable snake behaviors
-    snake.prevent_collisions(board)
-    snake.prefer_moves_towards(food)
-    snake.dont_trap_self(board)
-    move = snake.get_next_move()
+    snake.eat_food()
 
     return {
-        'move': move,
+        'move': snake.get_next_move(),
         'taunt': 'battlesnake-python!'
     }
 
