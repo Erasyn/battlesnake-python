@@ -9,10 +9,33 @@ class Board:
         '''Sets the board information'''
         self.width = data['width']
         self.height = data['height']
+        self.obstacles = []
+        self.flood_visited = [] 
+
+        for s in data['you']['body']['data']:
+            self.obstacles.append(Point(s['x'], s['y']))
 
     def is_outside(self, p):
-        '''Return true if p is in-bounds'''
+        '''Return true if p is out-of-bounds'''
         return p.x < 0 or p.y < 0 or p.x >= self.width or p.y >= self.height
+
+    def fill_size(self, p):
+        '''flood fill out from p and return the area'''
+        self.flood_visited = [] 
+        return self.rec_flood_fill(p)
+    
+    def rec_flood_fill(self, p):
+        '''Recursive flood fill'''
+        if (p in self.flood_visited or 
+            p in self.obstacles or 
+            self.is_outside(p)):
+            return 0
+
+        self.flood_visited.append(p)
+        return 1 + self.rec_flood_fill(p.left()) + \
+                   self.rec_flood_fill(p.right()) + \
+                   self.rec_flood_fill(p.up()) + \
+                   self.rec_flood_fill(p.down())
 
 class Snake:
     '''Simple class to represent the snake'''
@@ -26,8 +49,8 @@ class Snake:
         for b in data['you']['body']['data'][1:]:
             self.body.append(Point(b['x'], b['y']))
 
-        self.safe_moves = ['up', 'down', 'left', 'right']
-        self.preferred_moves = ['up', 'down', 'left', 'right']
+        self.safe_moves = ['up', 'down', 'left', 'right'] # Won't kill you
+        self.preferred_moves = [] # Move you closer to goal
 
     def dont_move(self, direction):
         '''Update the safe moves'''
@@ -54,10 +77,10 @@ class Snake:
                 board.is_outside(self.head.down())):
             self.dont_move('down')
 
-        self.preferred_moves = self.safe_moves[:]
-
     def prefer_moves_towards(self, p):
         '''Remove moves that take you away from p'''
+        self.preferred_moves = self.safe_moves[:]
+
         if (self.head.x >= p.x):
             self.try_not_to_move('right')
         if (self.head.x <= p.x):
@@ -66,6 +89,16 @@ class Snake:
             self.try_not_to_move('up')
         if (self.head.y >= p.y):
             self.try_not_to_move('down')
+
+    def dont_trap_self(self, board):
+        smart_moves = self.safe_moves[:]
+
+        for m in smart_moves:
+            pos = self.head.get(m) 
+            if (board.fill_size(pos) < len(self.body)):
+                smart_moves.remove(m)
+        self.preferred_moves = list(set(self.preferred_moves) & set(smart_moves))
+            
 
     def get_next_move(self):
         '''Return a preferred move, or just a safe one'''
@@ -85,6 +118,17 @@ class Point:
         '''Test equality'''
         return self.x == other.x and self.y == other.y
 
+    def get(self, direction):
+        '''get an adjacent point by passing a string'''
+        if (direction == 'left'): 
+            return self.left()
+        if (direction == 'right'):
+            return self.right()
+        if (direction == 'up'):
+            return self.up()
+        if (direction == 'down'):
+            return self.down()
+
     def left(self):
         '''Get the point to the left'''
         return Point(self.x-1, self.y)
@@ -100,6 +144,8 @@ class Point:
     def down(self):
         '''Get the point below'''
         return Point(self.x, self.y+1)
+
+# The web server methods start here:
 
 @bottle.route('/static/<path:path>')
 def static(path):
@@ -132,13 +178,16 @@ def start():
 def move():
     data = bottle.request.json
     
+    # Set up our objects
     board = Board(data)
     snake = Snake(data)
-    food = Point(data['food']['data'][0]['x'], # Only works with a single 
-                 data['food']['data'][0]['y']) # food right now...
+    food = Point(data['food']['data'][0]['x'],
+                 data['food']['data'][0]['y'])
 
+    # Enable snake behaviors
     snake.prevent_collisions(board)
     snake.prefer_moves_towards(food)
+    snake.dont_trap_self(board)
     move = snake.get_next_move()
 
     return {
