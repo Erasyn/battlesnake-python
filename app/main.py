@@ -99,7 +99,7 @@ class Snake:
     def move_towards(self, g):
         '''Updates next_move to move efficiently towards g'''
 
-        # TODO: Right this is using a kind of sloppy ad-hoc movement algorithm,
+        # TODO: Right now this is using a kind of sloppy ad-hoc movement algorithm,
         # but can easily be improved or swapped out with e.g. A* wihout 
         # worrying about the higher level behavior of the snake.
 
@@ -255,7 +255,7 @@ def move():
     # Set-up our snake and define its goals
     # Currently just using some example behavior
     snake = Snake(data)
-    if (snake.health < 200):
+    if (snake.health < 50):
         snake.eat_food()
     else:
         snake.random_walk()
