@@ -3,7 +3,6 @@ import os
 import random
 
 # TODO (Roughly in order of difficulty):
-# - Avoid entering same square as snake longer than you
 # - Better pathfinding towards goal
 # - implement food circling
 
@@ -15,15 +14,20 @@ class Board:
         self.width = data['width']
         self.height = data['height']
         self.obstacles = []
+        self.possible_head_collisions = []
         self.food = []
-        self.flood_visited = [] 
+        self.player = Snake(self, data['you']) 
+        self.enemies = []
 
         for p in data['you']['body']['data']:
             self.obstacles.append(Point(p['x'], p['y']))
 
-        for snake in data['snakes']['data']:
-            for p in snake['body']['data']:
+        for snake_data in data['snakes']['data']:
+            snake = Snake(self, snake_data)
+            for p in snake_data['body']['data']:
                 self.obstacles.append(Point(p['x'], p['y']))
+            if(snake.id != self.player.id):
+                self.enemies.append(snake) 
 
         for p in data['food']['data']:
             self.food.append(Point(p['x'], p['y']))
@@ -34,39 +38,36 @@ class Board:
 
     def fill_size(self, p):
         '''flood fill out from p and return the area'''
-        self.flood_visited = [] 
-        return self.rec_flood_fill(p)
+        visited = [] 
+        return self.rec_flood_fill(p, visited)
     
-    def rec_flood_fill(self, p):
+    def rec_flood_fill(self, p, visited):
         '''Recursive flood fill'''
-        if (p in self.flood_visited or 
-            p in self.obstacles or 
-            self.is_outside(p)):
+        if (p in visited or p in self.obstacles or self.is_outside(p)):
             return 0
 
-        self.flood_visited.append(p)
-        return 1 + self.rec_flood_fill(p.left()) + \
-                   self.rec_flood_fill(p.right()) + \
-                   self.rec_flood_fill(p.up()) + \
-                   self.rec_flood_fill(p.down())
+        visited.append(p)
+        return 1 + self.rec_flood_fill(p.left(), visited) + \
+                   self.rec_flood_fill(p.right(), visited) + \
+                   self.rec_flood_fill(p.up(), visited) + \
+                   self.rec_flood_fill(p.down(), visited)
 
 class Snake:
-    '''Simple class to represent the snake'''
+    '''Simple class to represent a snake'''
 
-    def __init__(self, data):
-        '''Sets up the snakes information'''
-        self.board = Board(data)
+    def __init__(self, board, data):
+        '''Sets up the snake's information'''
 
-        self.length = data['you']['length']
-        self.health = data['you']['health']
+        self.board = board
+        self.length = data['length']
+        self.health = data['health']
+        self.id = data['id']
 
-        self.head = Point(data['you']['body']['data'][0]['x'], 
-                          data['you']['body']['data'][0]['y'])
-
+        self.head = Point(data['body']['data'][0]['x'], 
+                          data['body']['data'][0]['y'])
         self.body = []
-        for b in data['you']['body']['data'][1:]:
+        for b in data['body']['data'][1:]:
             self.body.append(Point(b['x'], b['y']))
-
 
     def eat_food(self):
         '''High level goal to eat the food we are closest to'''
@@ -106,7 +107,9 @@ class Snake:
         self.safe_moves = ['up', 'down', 'left', 'right'] # Won't kill you
         self.smart_moves = [] # Don't trap yourself
         self.preferred_moves = [] # Move you closer to goal
+        
         self.prevent_collisions()
+        self.avoid_larger_snakes()
         self.dont_trap_self()
         self.prefer_moves_towards(g)
 
@@ -114,8 +117,10 @@ class Snake:
             self.next_move = self.preferred_moves.pop()
         elif (len(self.smart_moves)):
             self.next_move = self.smart_moves.pop()
-        else:
+        elif (len(self.safe_moves)):
             self.next_move = self.safe_moves.pop()
+        else:
+            self.next_move = 'up' # No possible moves
 
     def dont_move(self, direction):
         '''Update the safe moves'''
@@ -127,23 +132,34 @@ class Snake:
         if (direction in self.preferred_moves):
             self.preferred_moves.remove(direction)
 
+
     def prevent_collisions(self):
         '''Remove moves that will collide (with anything)'''
-        if (self.head.right() in self.body or 
-                self.board.is_outside(self.head.right())):
-            self.dont_move('right')
-        if (self.head.left() in self.body or 
-                self.board.is_outside(self.head.left())):
-            self.dont_move('left')
-        if (self.head.up() in self.body or 
-                self.board.is_outside(self.head.up())):
-            self.dont_move('up')
-        if (self.head.down() in self.body or 
-                self.board.is_outside(self.head.down())):
-            self.dont_move('down')
+        for move in self.safe_moves[:]:
+            next_pos = self.head.get(move)
+            if (next_pos in self.board.obstacles or 
+                    self.board.is_outside(next_pos)):
+                self.safe_moves.remove(move)
+
+    def avoid_larger_snakes(self):
+        self.smart_moves = self.safe_moves[:]
+        
+        dangerous = []
+        for enemy in self.board.enemies:
+            if enemy.length >= self.length:
+                dangerous.extend(enemy.head.surrounding_four())
+
+        for move in self.smart_moves:
+            next_pos = self.head.get(move)
+            if next_pos in dangerous:
+                self.smart_moves.remove(move)
+                continue
     
     def dont_trap_self(self):
-        self.smart_moves = self.safe_moves[:]
+        #self.smart_moves = self.safe_moves[:]
+
+        if len(self.smart_moves) == 0:
+            return
 
         areas = {}
         for move in self.smart_moves:
@@ -219,6 +235,10 @@ class Point:
         '''Get the point below'''
         return Point(self.x, self.y+1)
 
+    def surrounding_four(self):
+        '''Get a list of the 4 surrounding points'''
+        return [self.left(), self.right(), self.up(), self.down()]
+
 # The web server methods start here:
 
 @bottle.route('/static/<path:path>')
@@ -253,12 +273,9 @@ def move():
     data = bottle.request.json
     
     # Set-up our snake and define its goals
-    # Currently just using some example behavior
-    snake = Snake(data)
-    if (snake.health < 50):
-        snake.eat_food()
-    else:
-        snake.random_walk()
+    board = Board(data)
+    snake = board.player
+    snake.eat_food()
 
     return {
         'move': snake.next_move,
