@@ -17,11 +17,15 @@ class Board:
         self.obstacles = []
         self.food = []
         self.flood_visited = [] 
-
-        for p in data['you']['body']['data']:
-            self.obstacles.append(Point(p['x'], p['y']))
+        self.snake_buffer = []
 
         for snake in data['snakes']['data']:
+            if(snake['length'] >= data['you']['length'] and 
+                snake['id'] != data['you']['id']):
+                # This is still kinda buggy. Unsure why, but seems like it only works
+                # 100% with just 2 snakes
+                self.snake_buffer = Point(snake['body']['data'][0]['x'], \
+                                          snake['body']['data'][0]['y']).getBuffer()
             for p in snake['body']['data']:
                 self.obstacles.append(Point(p['x'], p['y']))
 
@@ -73,6 +77,7 @@ class Snake:
         # TODO: Maybe this goal should be told what food to eat, so that you
         # can e.g. program some logic about which to go for at a higher level
         food = self.head.closest(self.board.food)
+        food.checkRadius(1, self.board)
         self.move_towards(food)
 
     def random_walk(self):
@@ -111,39 +116,38 @@ class Snake:
         self.prefer_moves_towards(g)
 
         if (len(self.preferred_moves)):
+            print "pref",self.preferred_moves
             self.next_move = self.preferred_moves.pop()
         elif (len(self.smart_moves)):
+            print "smart",self.smart_moves
             self.next_move = self.smart_moves.pop()
         else:
+            print "safe",self.safe_moves
             self.next_move = self.safe_moves.pop()
 
-    def dont_move(self, direction):
-        '''Update the safe moves'''
-        if (direction in self.safe_moves):
-            self.safe_moves.remove(direction)
-
-    def try_not_to_move(self, direction):
-        '''Update the preferred moves'''
-        if (direction in self.preferred_moves):
-            self.preferred_moves.remove(direction)
+    def dont_move(self, direction, moves):
+        '''Update a list of moves'''
+        if (direction in moves):
+            moves.remove(direction)
 
     def prevent_collisions(self):
         '''Remove moves that will collide (with anything)'''
         if (self.head.right() in self.body or 
                 self.board.is_outside(self.head.right())):
-            self.dont_move('right')
+            self.dont_move('right', self.safe_moves)
         if (self.head.left() in self.body or 
                 self.board.is_outside(self.head.left())):
-            self.dont_move('left')
+            self.dont_move('left', self.safe_moves)
         if (self.head.up() in self.body or 
                 self.board.is_outside(self.head.up())):
-            self.dont_move('up')
+            self.dont_move('up', self.safe_moves)
         if (self.head.down() in self.body or 
                 self.board.is_outside(self.head.down())):
-            self.dont_move('down')
+            self.dont_move('down', self.safe_moves)
     
     def dont_trap_self(self):
         self.smart_moves = self.safe_moves[:]
+        removing = []
 
         areas = {}
         for move in self.smart_moves:
@@ -154,18 +158,24 @@ class Snake:
             if areas[move] != best_area:
                 self.smart_moves.remove(move)
 
+        for d in self.smart_moves:
+            if(self.head.get(d) in self.board.snake_buffer):
+                removing.append(d)
+        for r in removing:
+            self.dont_move(r, self.smart_moves)
+
     def prefer_moves_towards(self, p):
         '''Remove moves that take you away from p'''
         self.preferred_moves = self.smart_moves[:]
 
         if (self.head.x >= p.x):
-            self.try_not_to_move('right')
+            self.dont_move('right', self.preferred_moves)
         if (self.head.x <= p.x):
-            self.try_not_to_move('left')
+            self.dont_move('left', self.preferred_moves)
         if (self.head.y <= p.y):
-            self.try_not_to_move('up')
+            self.dont_move('up', self.preferred_moves)
         if (self.head.y >= p.y):
-            self.try_not_to_move('down')
+            self.dont_move('down', self.preferred_moves)
 
             
 class Point:
@@ -191,6 +201,29 @@ class Point:
     def dist(self, other):
         '''Calculate Manhattan distance to other point'''
         return abs(self.x - other.x) + abs(self.y - other.y)
+
+    def checkRadius(self, radius, board):
+        '''Check for entities in a radius around a point and returns them'''
+        entities = []
+        for i in range(-radius, radius+1, 1):
+            for j in range(-radius, radius+1, 1):
+                if(j != 0 or i != 0):
+                    if( Point(self.x+i, self.y+i) in board.flood_visited or 
+                        Point(self.x+i, self.y+i) in board.obstacles or 
+                        board.is_outside(Point(self.x+i, self.y+i)) ):
+                        entities.append(Point(self.x+i, self.y+i))
+        return entities
+
+    def getBuffer(self):
+        '''Returns a list of adjacent spaces in a 4-directional way'''
+        buffer = []
+        for i in range(-1, 2, 1):
+            for j in range(-1, 2, 1):
+                if( (j == 0 or i == 0) and j != i):
+                    buffer.append(Point(self.x+i, self.y+j))
+
+        return buffer
+
 
     def get(self, direction):
         '''get an adjacent point by passing a string'''
