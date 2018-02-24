@@ -64,6 +64,13 @@ class Snake:
         for b in data['body']['data'][1:]:
             self.body.append(Point(b['x'], b['y']))
 
+    def play_it_cool(self):
+        '''High level goal to move randomly until we need to it'''
+        if self.health > 25:
+            self.random_walk()
+        else:
+            self.eat_closest_food()
+
     def eat_closest_food(self):
         '''High level goal to eat the food we are closest to'''
         food = self.head.closest(self.board.food)
@@ -248,7 +255,7 @@ def move():
     # Set-up our snake and define its goals
     board = Board(data)
     snake = board.player
-    snake.eat_closest_food()
+    snake.play_it_cool()
 
     return {
         'move': snake.next_move,
