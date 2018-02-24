@@ -67,7 +67,7 @@ class Snake:
     def play_it_cool(self):
         '''High level goal to move randomly until we need to it'''
         if self.health > 25:
-            self.random_walk()
+            self.chase_tail()
         else:
             self.eat_closest_food()
 
@@ -80,6 +80,12 @@ class Snake:
         '''High level goal to perform a random walk (mostly for testing)'''
         move = random.choice(['up', 'down', 'left', 'right'])
         self.move_towards(self.head.get(move))
+
+    def chase_tail(self):
+        '''High level goal to move tighlty in the same area'''
+        # TODO: This only semi-works with the currenty movement algo
+        tail = self.body[-1]
+        self.move_towards(tail)
 
     def circle_point(self, point):
         '''High level goal to circle a point, head to tail'''
@@ -252,7 +258,7 @@ def start():
 def move():
     data = bottle.request.json
     
-    # Set-up our snake and define its goals
+    # Set-up our board and snake and define its goals
     board = Board(data)
     snake = board.player
     snake.play_it_cool()
