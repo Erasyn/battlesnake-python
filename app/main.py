@@ -2,10 +2,6 @@ import bottle
 import os
 import random
 
-# TODO (Roughly in order of difficulty):
-# - Better pathfinding towards goal
-# - implement food circling
-
 class Board:
     '''Simple class to represent the board'''
 
@@ -13,20 +9,20 @@ class Board:
         '''Sets the board information'''
         self.width = data['width']
         self.height = data['height']
-        self.obstacles = []
-        self.possible_head_collisions = []
-        self.food = []
         self.player = Snake(self, data['you']) 
         self.enemies = []
+        self.turn = data['turn']
+        self.food = []
+        self.obstacles = []
 
-        for p in data['you']['body']['data']:
-            self.obstacles.append(Point(p['x'], p['y']))
+        for point in data['you']['body']['data']:
+            self.obstacles.append(Point(point['x'], point['y']))
 
         for snake_data in data['snakes']['data']:
             snake = Snake(self, snake_data)
-            for p in snake_data['body']['data']:
-                self.obstacles.append(Point(p['x'], p['y']))
-            if(snake.id != self.player.id):
+            for point in snake_data['body']['data']:
+                self.obstacles.append(Point(point['x'], point['y']))
+            if snake.id != self.player.id:
                 self.enemies.append(snake) 
 
         for p in data['food']['data']:
@@ -36,81 +32,70 @@ class Board:
         '''Return true if p is out-of-bounds'''
         return p.x < 0 or p.y < 0 or p.x >= self.width or p.y >= self.height
 
-    def fill_size(self, p):
+    def available_space(self, p):
         '''flood fill out from p and return the area'''
         visited = [] 
         return self.rec_flood_fill(p, visited)
     
     def rec_flood_fill(self, p, visited):
-        '''Recursive flood fill'''
-        if (p in visited or p in self.obstacles or self.is_outside(p)):
+        '''Recursive flood fill (Used by above method)'''
+        if p in visited or p in self.obstacles or self.is_outside(p):
             return 0
-
         visited.append(p)
-        return 1 + self.rec_flood_fill(p.left(), visited) + \
-                   self.rec_flood_fill(p.right(), visited) + \
-                   self.rec_flood_fill(p.up(), visited) + \
-                   self.rec_flood_fill(p.down(), visited)
+        return 1 + (self.rec_flood_fill(p.left(), visited) + 
+                    self.rec_flood_fill(p.right(), visited) + 
+                    self.rec_flood_fill(p.up(), visited) + 
+                    self.rec_flood_fill(p.down(), visited))
 
 class Snake:
     '''Simple class to represent a snake'''
 
     def __init__(self, board, data):
         '''Sets up the snake's information'''
-
         self.board = board
-        self.length = data['length']
-        self.health = data['health']
         self.id = data['id']
-
+        self.name = data['name']
+        self.health = data['health']
+        self.length = data['length']
         self.head = Point(data['body']['data'][0]['x'], 
                           data['body']['data'][0]['y'])
         self.body = []
+
         for b in data['body']['data'][1:]:
             self.body.append(Point(b['x'], b['y']))
 
-    def eat_food(self):
+    def eat_closest_food(self):
         '''High level goal to eat the food we are closest to'''
-        # TODO: Maybe this goal should be told what food to eat, so that you
-        # can e.g. program some logic about which to go for at a higher level
         food = self.head.closest(self.board.food)
         self.move_towards(food)
 
     def random_walk(self):
-        '''High level goal to perform a random walk (for testing)'''
+        '''High level goal to perform a random walk (mostly for testing)'''
         move = random.choice(['up', 'down', 'left', 'right'])
         self.move_towards(self.head.get(move))
 
     def circle_point(self, point):
         '''High level goal to circle a point, head to tail'''
         # TODO: This seems useful but tough to program. Need to think about it.
-
-        # - take your length, divide it by 4, round up
-        # - that's the length of the sides of your path
-        # - I don't think that works, but somehow find the size of the sides 
-        # of the smallest square you can make
-        # - Calculate the path of that size around the desired point
-        # - If you aren't already on that path, you need to move there
-        # - If you are, its 'easy' to calculate your next move
-        # - either cw, or ccw
-        # - but you also need to avoid obstacles while you are circling...
-
         pass
+
+    # Below here is all (currently sloppy) movement code
     
     def move_towards(self, g):
         '''Updates next_move to move efficiently towards g'''
-
-        # TODO: Right now this is using a kind of sloppy ad-hoc movement algorithm,
-        # but can easily be improved or swapped out with e.g. A* wihout 
-        # worrying about the higher level behavior of the snake.
+        # NOTE: move_towards() could be swapped out with a smarter algo, 
+        #       e.g. A* or something without needing to worry about the 
+        #       higher level behavior of the snake.
 
         self.safe_moves = ['up', 'down', 'left', 'right'] # Won't kill you
         self.smart_moves = [] # Don't trap yourself
         self.preferred_moves = [] # Move you closer to goal
         
         self.prevent_collisions()
+        self.smart_moves = self.safe_moves[:]
         self.avoid_larger_snakes()
         self.dont_trap_self()
+        self.preferred_moves = self.smart_moves[:]
         self.prefer_moves_towards(g)
 
         if (len(self.preferred_moves)):
@@ -122,17 +107,6 @@ class Snake:
         else:
             self.next_move = 'up' # No possible moves
 
-    def dont_move(self, direction):
-        '''Update the safe moves'''
-        if (direction in self.safe_moves):
-            self.safe_moves.remove(direction)
-
-    def try_not_to_move(self, direction):
-        '''Update the preferred moves'''
-        if (direction in self.preferred_moves):
-            self.preferred_moves.remove(direction)
-
-
     def prevent_collisions(self):
         '''Remove moves that will collide (with anything)'''
         for move in self.safe_moves[:]:
@@ -142,50 +116,49 @@ class Snake:
                 self.safe_moves.remove(move)
 
     def avoid_larger_snakes(self):
-        self.smart_moves = self.safe_moves[:]
-        
+        '''Don't move into the pather of a longer snake''' 
         dangerous = []
         for enemy in self.board.enemies:
             if enemy.length >= self.length:
                 dangerous.extend(enemy.head.surrounding_four())
-
         for move in self.smart_moves:
             next_pos = self.head.get(move)
             if next_pos in dangerous:
                 self.smart_moves.remove(move)
                 continue
-    
-    def dont_trap_self(self):
-        #self.smart_moves = self.safe_moves[:]
 
+    def dont_trap_self(self):
+        '''Avoid moves that constrain you to a small area'''
         if len(self.smart_moves) == 0:
             return
 
         areas = {}
         for move in self.smart_moves:
-            areas[move] = self.board.fill_size(self.head.get(move))
-
+            areas[move] = self.board.available_space(self.head.get(move))
         best_area = max(areas.values())
+
         for move in areas:
             if areas[move] != best_area:
                 self.smart_moves.remove(move)
 
+    def prefer_not_to_move(self, direction):
+        '''Update the preferred moves'''
+        if (direction in self.preferred_moves):
+            self.preferred_moves.remove(direction)
+
     def prefer_moves_towards(self, p):
         '''Remove moves that take you away from p'''
-        self.preferred_moves = self.smart_moves[:]
-
         if (self.head.x >= p.x):
-            self.try_not_to_move('right')
+            self.prefer_not_to_move('right')
         if (self.head.x <= p.x):
-            self.try_not_to_move('left')
+            self.prefer_not_to_move('left')
         if (self.head.y <= p.y):
-            self.try_not_to_move('up')
+            self.prefer_not_to_move('up')
         if (self.head.y >= p.y):
-            self.try_not_to_move('down')
-
+            self.prefer_not_to_move('down')
             
 class Point:
-    '''Simple class for 2d points'''
+    '''Simple class for points'''
 
     def __init__(self, x, y):
         '''Defines x and y variables'''
@@ -263,7 +236,7 @@ def start():
         'taunt': '{} ({}x{})'.format(game_id, board_width, board_height),
         'head_url': head_url,
         'name': 'daddy',
-        'head_type': 'smile',
+        'head_type': 'smile', # TODO: Why aren't these rendering? 
         'tail_type': 'block-bum'
     }
 
@@ -275,7 +248,7 @@ def move():
     # Set-up our snake and define its goals
     board = Board(data)
     snake = board.player
-    snake.eat_food()
+    snake.eat_closest_food()
 
     return {
         'move': snake.next_move,
