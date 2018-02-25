@@ -2,6 +2,21 @@ import bottle
 import os
 import random
 
+# Some thoughts:
+# Really, you should only care about food some small amount of the time, that 
+# is, as long as you are the closest snake to a piece of food that you *could*
+# reach before dying, you don't need to worry about it. Instead, focus on e.g.
+# avoind other snakes heads, avoiding real and potential traps, trapping other
+# snakes, etc. Eating food doesn't help you win, you just need to stay alive.
+# So here's my idea for a smart snake in english:
+# Always make sure you have food you could reach without dying. Avoid eating 
+# that food unless you need it. Stay away from other snakes heads (this is the
+# most dynamic and dangerous part of the board). If you find your head trapped
+# in a place smaller than your body, your priority should be to travel as 
+# tightly as possible until you have a way out, and then take that way out.
+# I think that if you could successfully do all of that you would be a really 
+# formiddable snake.
+
 class Board:
     '''Simple class to represent the board'''
 
@@ -15,12 +30,12 @@ class Board:
         self.food = []
         self.obstacles = []
 
-        for point in data['you']['body']['data']:
+        for point in data['you']['body']['data'][:-1]:
             self.obstacles.append(Point(point['x'], point['y']))
 
         for snake_data in data['snakes']['data']:
             snake = Snake(self, snake_data)
-            for point in snake_data['body']['data']:
+            for point in snake_data['body']['data'][:-1]:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
                 self.enemies.append(snake) 
@@ -32,8 +47,16 @@ class Board:
         '''Return true if p is out-of-bounds'''
         return p.x < 0 or p.y < 0 or p.x >= self.width or p.y >= self.height
 
+    def neighbors_of(self, p):
+        '''Return list of accessible neighbors of point'''
+        res = []
+        for p in p.surrounding_four():
+            if p not in self.obstacles and not self.is_outside(p):
+                res.append(p)
+        return res
+
     def available_space(self, p):
-        '''flood fill out from p and return the area'''
+        '''flood fill out from p and return the accessible area'''
         visited = [] 
         return self.rec_flood_fill(p, visited)
     
@@ -46,6 +69,13 @@ class Board:
                     self.rec_flood_fill(p.right(), visited) + 
                     self.rec_flood_fill(p.up(), visited) + 
                     self.rec_flood_fill(p.down(), visited))
+
+    def all_points(self):
+        res = []
+        for x in range(self.width):
+            for y in range(self.height):
+                res.append(Point(x, y))
+        return res
 
 class Snake:
     '''Simple class to represent a snake'''
@@ -64,12 +94,17 @@ class Snake:
         for b in data['body']['data'][1:]:
             self.body.append(Point(b['x'], b['y']))
 
-    def play_it_cool(self):
-        '''High level goal to move randomly until we need to it'''
-        if self.health > 25:
+    def smart_movement(self):
+        '''Attempt at a smart decision making snake (in progress)'''
+        if self.health > 2 * max(self.board.height, self.board.width):
             self.chase_tail()
-        else:
-            self.eat_closest_food()
+        else: 
+            goal = self.head.closest(self.board.food)
+            path = self.a_star_path_to(goal)
+            if path:
+                self.move_towards(path[0])
+            else:
+                self.random_walk()
 
     def eat_closest_food(self):
         '''High level goal to eat the food we are closest to'''
@@ -83,23 +118,91 @@ class Snake:
 
     def chase_tail(self):
         '''High level goal to move tighlty in the same area'''
-        # TODO: This only semi-works with the currenty movement algo
         tail = self.body[-1]
         self.move_towards(tail)
 
     def circle_point(self, point):
         '''High level goal to circle a point, head to tail'''
         # TODO: This seems useful but tough to program. Need to think about it.
+        self.move_towards(point)
         pass
 
-    # Below here is all (currently sloppy) movement code
+    # Below here is just a bunch of (currently sloppy) movement code
+
+    def a_star_path_to(self, goal):
+        '''Updates next_move to move towards g using A*. Code adapted from 
+        A* pseudocode on Wikipedia.
+        '''
+        # TODO: This is working but code is still kind of sloppy and maybe 
+        #       not fast enough. Seems to be effective pathfinding though.
+        start = self.head
+        
+        closed_set = []
+        open_set = [start]
+
+        came_from = {}
+        g_score = {}
+        f_score = {}
+
+        str_start = str(start)
+        g_score[str_start] = 0
+        f_score[str_start] = start.dist(goal)
+
+        while open_set:
+            str_current = str(open_set[0])
+            for p in open_set[1:]:
+                str_p = str(p)
+                if str_p not in f_score:
+                    f_score[str_p] = 100000000000
+                if str_current not in f_score:
+                    f_score[str_current] = 1000000000
+                if f_score[str_p] < f_score[str_current]:
+                    str_current = str_p
+
+            current = point_from_string(str_current)
+
+            if current == goal:
+                path = self.reconstruct_path(came_from, current)
+                path.reverse()
+                return path[1:]
+
+            open_set.remove(current)
+            closed_set.append(current)
+
+            for neighbor in self.board.neighbors_of(current):
+                str_neighbor = str(neighbor)
+                if neighbor in closed_set:
+                    continue
+
+                if neighbor not in open_set:
+                    open_set.append(neighbor)
+
+                if str_current not in g_score:
+                    g_score[str_current] = 1000000000
+                if str_neighbor not in g_score:
+                    g_score[str_neighbor] = 1000000000
+
+                tentative_g_score = (g_score[str_current] + 
+                                     current.dist(neighbor))
+                if tentative_g_score >= g_score[str_neighbor]:
+                    continue
+
+                came_from[str_neighbor] = current
+                g_score[str_neighbor] = tentative_g_score
+                f_score[str_neighbor] = (g_score[str_neighbor] + 
+                                          neighbor.dist(goal))
+        return []
+
+    def reconstruct_path(self, came_from, current):
+        '''Get the path as a list from A*'''
+        total_path = [current]
+        while str(current) in came_from.keys():
+            current = came_from[str(current)]
+            total_path.append(current)
+        return total_path
     
     def move_towards(self, g):
         '''Updates next_move to move efficiently towards g'''
-        # NOTE: move_towards() could be swapped out with a smarter algo, 
-        #       e.g. A* or something without needing to worry about the 
-        #       higher level behavior of the snake.
-
         self.safe_moves = ['up', 'down', 'left', 'right'] # Won't kill you
         self.smart_moves = [] # Don't trap yourself
         self.preferred_moves = [] # Move you closer to goal
@@ -134,7 +237,7 @@ class Snake:
         for enemy in self.board.enemies:
             if enemy.length >= self.length:
                 dangerous.extend(enemy.head.surrounding_four())
-        for move in self.smart_moves:
+        for move in self.smart_moves[:]:
             next_pos = self.head.get(move)
             if next_pos in dangerous:
                 self.smart_moves.remove(move)
@@ -182,6 +285,12 @@ class Point:
         '''Test equality'''
         return self.x == other.x and self.y == other.y
 
+    def __str__(self):
+        return (str)(self.x) + ',' + (str)(self.y)
+
+    def __repr__(self):
+        return self.__str__()
+
     def closest(self, l):
         '''Returns Point in l closest to self'''
         closest = l[0]
@@ -225,6 +334,10 @@ class Point:
         '''Get a list of the 4 surrounding points'''
         return [self.left(), self.right(), self.up(), self.down()]
 
+def point_from_string(string):
+    s = string.split(',')
+    return Point(int(s[0]), int(s[1]))
+
 # The web server methods start here:
 
 @bottle.route('/static/<path:path>')
@@ -261,7 +374,7 @@ def move():
     # Set-up our board and snake and define its goals
     board = Board(data)
     snake = board.player
-    snake.play_it_cool()
+    snake.smart_movement()
 
     return {
         'move': snake.next_move,
