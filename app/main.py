@@ -8,14 +8,24 @@ import random
 # reach before dying, you don't need to worry about it. Instead, focus on e.g.
 # avoind other snakes heads, avoiding real and potential traps, trapping other
 # snakes, etc. Eating food doesn't help you win, you just need to stay alive.
-# So here's my idea for a smart snake in english:
-# Always make sure you have food you could reach without dying. Avoid eating 
-# that food unless you need it. Stay away from other snakes heads (this is the
-# most dynamic and dangerous part of the board). If you find your head trapped
-# in a place smaller than your body, your priority should be to travel as 
-# tightly as possible until you have a way out, and then take that way out.
-# I think that if you could successfully do all of that you would be a really 
-# formiddable snake.
+# So here's my idea for a smart snake (in english instead of code):
+# Always make sure you have food you *could* reach without dying. Avoid eating 
+# that food until you need it. In the meantime, stay away from other snakes 
+# heads (these are the most dynamic and dangerous part of the board). If you 
+# find your head trapped in a place smaller than your body, your priority 
+# should be to travel as tightly as possible until you have a way out, and then 
+# take that way out. I think that if you could successfully do all of that you 
+# would have a pretty formidable snake.
+
+# TODO: 
+# - figure out why chase tail doesn't work til you hit a wall
+# - better way to prioritize goal system (do some ai research)
+# - avoid getting close to other snakes heads
+# - alternativey, when you get close try to cut them off
+# - find the food you are the closest to, not just the closest food
+# - base going for food on how many moves it would take to get there, instead
+#   of the board size
+# - speed things up
 
 class Board:
     '''Simple class to represent the board'''
@@ -96,15 +106,12 @@ class Snake:
 
     def smart_movement(self):
         '''Attempt at a smart decision making snake (in progress)'''
-        if self.health > 2 * max(self.board.height, self.board.width):
-            self.chase_tail()
-        else: 
-            goal = self.head.closest(self.board.food)
-            path = self.a_star_path_to(goal)
-            if path:
-                self.move_towards(path[0])
-            else:
-                self.random_walk()
+        goal = self.head.closest(self.board.food)
+        path = self.a_star_path_to(goal)
+        if path:
+            self.move_towards(path[0])
+        else:
+            self.random_walk()
 
     def eat_closest_food(self):
         '''High level goal to eat the food we are closest to'''
