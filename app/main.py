@@ -20,13 +20,15 @@ class Board:
         self.turn = data['turn']
         self.food = []
         self.obstacles = []
+        self.dangerous = [] 
 
         for point in data['you']['body']['data'][:-1]:
             self.obstacles.append(Point(point['x'], point['y']))
 
         for snake_data in data['snakes']['data']:
             snake = Snake(self, snake_data)
-            for point in snake_data['body']['data'][:-1]:
+            self.dangerous.extend(snake.head.surrounding_four())
+            for point in snake_data['body']['data']:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
                 self.enemies.append(snake) 
@@ -53,7 +55,8 @@ class Board:
     
     def rec_flood_fill(self, p, visited):
         '''Recursive flood fill (Used by above method)'''
-        if p in visited or p in self.obstacles or self.is_outside(p):
+        if (p in visited or p in self.obstacles or self.is_outside(p) or 
+                p in self.dangerous):
             return 0
         visited.append(p)
         return 1 + (self.rec_flood_fill(p.left(), visited) + 
@@ -69,14 +72,14 @@ class Board:
 
     def rec_flood_fill2(self, p, visited):
         '''Same as above but returns a list of the points'''
-        if p in visited or p in self.obstacles or self.is_outside(p):
+        if (p in visited or p in self.obstacles or self.is_outside(p) or 
+                p in self.dangerous()):
             return visited
         visited.append(p)
         self.rec_flood_fill(p.left(), visited)
         self.rec_flood_fill(p.right(), visited)
         self.rec_flood_fill(p.up(), visited)
         self.rec_flood_fill(p.down(), visited)
-        print(visited)
         return visited
 
     def distances(self, start, points):
