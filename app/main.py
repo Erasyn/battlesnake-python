@@ -21,12 +21,9 @@ class Board:
         self.food = []
         self.obstacles = []
 
-        for point in data['you']['body']['data'][:-1]:
-            self.obstacles.append(Point(point['x'], point['y']))
-
         for snake_data in data['snakes']['data']:
             snake = Snake(self, snake_data)
-            for point in snake_data['body']['data'][:-1]:
+            for point in snake_data['body']['data']:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
                 self.enemies.append(snake) 
@@ -76,7 +73,6 @@ class Board:
         self.rec_flood_fill(p.right(), visited)
         self.rec_flood_fill(p.up(), visited)
         self.rec_flood_fill(p.down(), visited)
-        print(visited)
         return visited
 
     def distances(self, start, points):
@@ -352,17 +348,28 @@ class Snake:
         the move won't kill you now, but it might or might in the future.'''
         if self.board.is_threatened_by_enemy(point):
             return False
-        if self.is_constricting_self(point):
+        if self.is_not_constricting_self(point):
             return False
         return True
 
-    def is_constricting_self(self, point):
+    def is_not_constricting_self(self, point):
         '''Returns True if moving here will put us in a smaller area'''
-        current_space = self.board.count_available_space(self.head)
-        space_from_point = self.board.count_available_space(point)
-        if (space_from_point < current_space):
-            return True
-        return False
+        possible_moves = self.valid_moves()
+
+        if len(possible_moves) == 0:
+            return
+
+        areas = {}
+        for move in possible_moves:
+            areas[move] = self.board.count_available_space(self.head.get(move))
+        best_area = max(areas.values())
+        print areas
+        next_area = self.board.count_available_space(point)
+        print next_area, best_area
+
+        if(best_area == next_area):
+            return False
+        return True
 
     # Below here is just a bunch of (currently sloppy) movement code
 
