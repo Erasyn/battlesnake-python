@@ -21,9 +21,6 @@ class Board:
         self.food = []
         self.obstacles = []
 
-        # for point in data['you']['body']['data'][1:]:
-        #     self.obstacles.append(Point(point['x'], point['y']))
-
         for snake_data in data['snakes']['data']:
             snake = Snake(self, snake_data)
             for point in snake_data['body']['data']:
@@ -303,7 +300,6 @@ class Snake:
     def smart_walk(self):
         '''Like random_smart_walk but deterministic (good for testing)'''
         smart = self.smart_moves()
-        print self.smart_moves()
         if smart: 
             self.next_move = random.choice(smart)
             return True
@@ -374,14 +370,6 @@ class Snake:
         if(best_area == next_area):
             return False
         return True
-
-
-        # current_space = self.board.count_available_space(self.head)
-        # space_from_point = self.board.count_available_space(point)
-        # print space_from_point, ",", current_space
-        # if (space_from_point < current_space):
-        #     return True
-        # return False
 
     # Below here is just a bunch of (currently sloppy) movement code
 
