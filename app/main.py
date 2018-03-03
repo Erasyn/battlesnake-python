@@ -3,7 +3,7 @@ import os
 import random
 
 INF = 1000000000
-DEBUG = False
+DEBUG = True
 
 def debug(message):
     if DEBUG: print(message)
@@ -26,7 +26,6 @@ class Board:
             for point in snake_data['body']['data']:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
-                self.obstacles.extend(snake.head.surrounding_four())
                 self.enemies.append(snake) 
 
         for p in data['food']['data']:
@@ -364,7 +363,9 @@ class Snake:
         for move in possible_moves:
             areas[move] = self.board.count_available_space(self.head.get(move))
         best_area = max(areas.values())
+        print areas
         next_area = self.board.count_available_space(point)
+        print next_area, best_area
 
         if(best_area == next_area):
             return False
