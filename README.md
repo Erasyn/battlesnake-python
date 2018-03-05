@@ -1,4 +1,4 @@
-# battlesnake-python (Name TBA)
+# battlesnake-python (Crayon)
 
 ## Ethan Wipond and Wyll Brimacombe
 
@@ -7,6 +7,9 @@ Fork of [battlesnake-python](https://github.com/sendwithus/battlesnake).
 Master branch is auto-deployed to https://era-snake.herokuapp.com/
 
 This AI client uses the [bottle web framework](http://bottlepy.org/docs/dev/index.html) to serve requests and the [gunicorn web server](http://gunicorn.org/) for running bottle on Heroku. Dependencies are listed in [requirements.txt](requirements.txt).
+
+2018:
+Beat Semaphore, Giftbit, Redbrick, and Bambora.
 
 ## Running the Snake Locally
 
