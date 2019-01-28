@@ -19,22 +19,22 @@ class Board:
 
     def __init__(self, data):
         '''Sets the board information'''
-        self.width = data['width']
-        self.height = data['height']
+        self.width = data['board']['width']
+        self.height = data['board']['height']
         self.player = Snake(self, data['you']) 
         self.enemies = []
         self.turn = data['turn']
         self.food = []
         self.obstacles = []
 
-        for snake_data in data['snakes']['data']:
+        for snake_data in data['board']['snakes']:
             snake = Snake(self, snake_data)
-            for point in snake_data['body']['data']:
+            for point in snake_data['body']:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
                 self.enemies.append(snake) 
 
-        for p in data['food']['data']:
+        for p in data['board']['food']:
             self.food.append(Point(p['x'], p['y']))
 
     def is_outside(self, p):
@@ -250,13 +250,14 @@ class Snake:
         self.id = data['id']
         self.name = data['name']
         self.health = data['health']
-        self.length = data['length']
-        self.head = Point(data['body']['data'][0]['x'], 
-                          data['body']['data'][0]['y'])
+        self.head = Point(data['body'][0]['x'], 
+                          data['body'][0]['y'])
         self.body = []
 
-        for b in data['body']['data'][1:]:
+        for b in data['body'][1:]:
             self.body.append(Point(b['x'], b['y']))
+
+        self.length = len(self.body)
 
     # High level, composable actions the snake can perform
 
@@ -403,23 +404,25 @@ def static(path):
 
 @bottle.post('/start')
 def start():
-    data = bottle.request.json
-    game_id = data['game_id']
-    board_width = data['width']
-    board_height = data['height']
+    # 2019: All of this was moved out the /start request
+    #data = bottle.request.json
+    #game_id = data['game']['game_id']
+    #board_width = data['board']['width']
+    #board_height = data['board']['height']
 
-    head_url = '%s://%s/static/head.png' % (
-        bottle.request.urlparts.scheme,
-        bottle.request.urlparts.netloc
-    )
+    #head_url = '%s://%s/static/head.png' % (
+    #    bottle.request.urlparts.scheme,
+    #    bottle.request.urlparts.netloc
+    #)
 
     return {
-        'color': '#000000',
-        'taunt': '{} ({}x{})'.format(game_id, board_width, board_height),
-        'head_url': head_url,
-        'name': 'daddy',
-        'head_type': 'smile', # TODO: Why aren't these rendering? 
-        'tail_type': 'block-bum'
+        'color': '#000000'
+        # Not yet supported this year (per docs):
+        #'taunt': '{} ({}x{})'.format(game_id, board_width, board_height),
+        #'head_url': head_url,
+        #'name': 'daddy',
+        #'head_type': 'smile', # TODO: Why aren't these rendering? 
+        #'tail_type': 'block-bum'
     }
 
 
@@ -437,6 +440,14 @@ def move():
         'taunt': 'battlesnake-python!'
     }
 
+
+@bottle.post('/end')
+def end():
+    return {}
+
+@bottle.post('/ping')
+def end():
+    return {}
 
 # Expose WSGI app (so gunicorn can find it)
 application = bottle.default_app()
