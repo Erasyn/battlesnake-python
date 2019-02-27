@@ -2,12 +2,6 @@ import bottle
 import os
 import random
 
-'''
-Add move toward snake tail as a flood priority.
-Add potential snake moves to flooding in a way that they know they can still move there.
-Something with outer edges of map
-'''
-
 INF = 1000000000
 DEBUG = True
 

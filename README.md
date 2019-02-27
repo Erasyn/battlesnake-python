@@ -41,3 +41,15 @@ python app/main.py
 cd battlesnake-engine
 ./engine-dev
 ```
+
+## To Do 
+
+- Add move toward snake tail as a flood priority.
+- Add potential snake moves to flooding in a way that they know they can still move there.
+- Something with outer edges of map
+
+- Clean up repo
+- Migrate to Python 3?
+- Speed up response time?
+- better logging
+- Get snake running on snakedown/play.battlensake
