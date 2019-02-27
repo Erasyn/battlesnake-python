@@ -23,24 +23,38 @@ Beat Semaphore, Giftbit, Redbrick, and Bambora.
 git clone git@github.com:username/battlesnake-python.git
 ```
 
-2) Install dependencies using [pip](https://pip.pypa.io/en/latest/installing.html):
+2) Setup a python3 virtual environment 
+
+```
+python3 -m venv env
+```
+
+3) Activate the virtual environment
+
+```
+source env/bin/activate
+```
+
+3) Install dependencies using [pip](https://pip.pypa.io/en/latest/installing.html):
 ```
 pip install -r requirements.txt
 ```
 
-3) Run local server:
+4) Run local server:
 ```
 python app/main.py
 ```
 
-4) Test client in your browser: [http://localhost:8080](http://localhost:8080).
+5) Test client in your browser: [http://localhost:8080](http://localhost:8080).
 
-5) Start the [test server](http://docs.battlesnake.io/zero-to-snake-linux.html)
+6) Start the [test server](http://docs.battlesnake.io/zero-to-snake-linux.html)
 
 ```
 cd battlesnake-engine
-./engine-dev
+./engine dev
 ```
+
+7) Navigate to [http://localhost:3010](http://localhost:3010)
 
 ## To Do 
 

@@ -364,9 +364,9 @@ class Snake:
         for move in possible_moves:
             areas[move] = self.board.count_available_space(self.head.get(move))
         best_area = max(areas.values())
-        print areas
+        print(areas)
         next_area = self.board.count_available_space(point)
-        print next_area, best_area
+        print(next_area, best_area)
 
         if(best_area == next_area):
             return False
