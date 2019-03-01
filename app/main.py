@@ -20,13 +20,17 @@ class Board:
         self.turn = data['turn']
         self.food = []
         self.obstacles = []
+        self.heads = []
+        self.tails = []
 
         for snake_data in data['board']['snakes']:
             snake = Snake(self, snake_data)
             for point in snake_data['body']:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
-                self.enemies.append(snake) 
+                self.enemies.append(snake)
+            self.heads.append(snake.head)
+            self.tails.append(snake.tail)
 
         for p in data['board']['food']:
             self.food.append(Point(p['x'], p['y']))
@@ -45,9 +49,26 @@ class Board:
 
     def count_available_space(self, p):
         '''flood fill out from p and return the accessible area'''
-        visited = [] 
-        return self.rec_flood_fill(p, visited)
+        visited = []
+        heads = []
+        tails = []
+        space = self.rec_flood_fill_snake_data(p, visited, heads, tails)
+        return [space, len(heads), len(tails)]
     
+    def rec_flood_fill_snake_data(self, p, visited, heads, tails):
+        '''Recursive flood fill (Used by above method)'''
+        if p in visited or p in self.obstacles or self.is_outside(p):
+            if p in self.heads and p not in heads and p != self.player.head:
+                heads.append(p)
+            if p in self.tails and p not in tails:
+                tails.append(p)
+            return 0
+        visited.append(p)
+        return 1 + (self.rec_flood_fill_snake_data(p.left(), visited, heads, tails) + 
+                    self.rec_flood_fill_snake_data(p.right(), visited, heads, tails) + 
+                    self.rec_flood_fill_snake_data(p.up(), visited, heads, tails) + 
+                    self.rec_flood_fill_snake_data(p.down(), visited, heads, tails))
+
     def rec_flood_fill(self, p, visited):
         '''Recursive flood fill (Used by above method)'''
         if p in visited or p in self.obstacles or self.is_outside(p):
@@ -56,7 +77,7 @@ class Board:
         return 1 + (self.rec_flood_fill(p.left(), visited) + 
                     self.rec_flood_fill(p.right(), visited) + 
                     self.rec_flood_fill(p.up(), visited) + 
-                    self.rec_flood_fill(p.down(), visited))
+                    self.rec_flood_fill(p.down(), visited))    
 
     def available_space(self, p):
         '''Same as above but return a list of the points'''
@@ -246,6 +267,8 @@ class Snake:
         self.health = data['health']
         self.head = Point(data['body'][0]['x'], 
                           data['body'][0]['y'])
+        self.tail = Point(data['body'][-1]['x'], 
+                          data['body'][-1]['y'])
         self.body = []
 
         for b in data['body'][1:]:
@@ -272,7 +295,7 @@ class Snake:
             closest_food = point_from_string(min(distances, key=distances.get))
             return self.move_towards(closest_food)
         return False
-        
+
     def random_walk(self):
         '''High level goal to perform a random walk (mostly for testing). 
         Returns False if there are no valid moves (i.e. you are trapped.)'''
@@ -307,6 +330,7 @@ class Snake:
         return False
 
     def chase_tail(self):
+        # TODO Make this used
         '''High level goal to chase tail tightly. Return False if there is no
         path to your tail.'''
         tail = self.body[-1]
@@ -363,7 +387,13 @@ class Snake:
         areas = {}
         for move in possible_moves:
             areas[move] = self.board.count_available_space(self.head.get(move))
-        best_area = max(areas.values())
+        # have some check to see when this is necessary and speed this up
+        best_area = sorted(areas.items(), key=lambda e: (e[1][2], e[1][2] > e[1][1], e[1][1] > 0, -e[1][1], e[1][0]), reverse=True)[0][1]
+        #  This is good, needs to go to a tail space over space with no tails.
+        # print("best area", best_area)
+        # tails > heads # heads == tails # tails > 0 # heads > 0 # max area
+        # {'s': [8, 0, 0], 't': [20, 0, 0], 'k': [9, 1, 0], 'e': [8, 3, 1], 'r': [4, 1, 1], 'o': [3, 0, 1], 'c': [8, 1, 2]}
+
         print(areas)
         next_area = self.board.count_available_space(point)
         print(next_area, best_area)
@@ -371,23 +401,6 @@ class Snake:
         if(best_area == next_area):
             return False
         return True
-
-    # Below here is just a bunch of (currently sloppy) movement code
-
-    def dont_trap_self(self):
-        '''Avoid moves that constrain you to a small area'''
-        # TODO: Refactor this so it works with the new movement code.
-        if len(self.smart_moves) == 0:
-            return
-
-        areas = {}
-        for move in self.smart_moves:
-            areas[move] = self.board.count_available_space(self.head.get(move))
-        best_area = max(areas.values())
-
-        for move in areas:
-            if areas[move] != best_area:
-                self.smart_moves.remove(move)
 
 # The web server methods start here:
 
@@ -431,7 +444,7 @@ def move():
 
     return {
         'move': snake.next_move,
-        'taunt': 'battlesnake-python!'
+        'taunt': 'drawing...'
     }
 
 
@@ -440,7 +453,7 @@ def end():
     return {}
 
 @bottle.post('/ping')
-def end():
+def ping():
     return {}
 
 # Expose WSGI app (so gunicorn can find it)
