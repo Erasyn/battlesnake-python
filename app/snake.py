@@ -120,7 +120,7 @@ class Snake:
         the move won't kill you now, but it might or might in the future.'''
         if self.board.is_threatened_by_enemy(point):
             return False
-        if self.is_not_constricting_self(point):
+        if self.is_not_trapped_with_no_out(point):
             return False
         return True
 
@@ -134,6 +134,24 @@ class Snake:
         areas = {}
         for move in possible_moves:
             areas[move] = self.board.count_available_space(self.head.get(move))
+
+        best_area = max(areas.values)
+        next_area = self.board.count_available_space(point)
+
+        if(best_area == next_area):
+            return False
+        return True
+
+    def is_not_trapped_with_no_out(self, point):
+        '''Returns True if moving here will put us in an area without any tails'''
+        possible_moves = self.valid_moves()
+
+        if len(possible_moves) == 0:
+            return
+
+        areas = {}
+        for move in possible_moves:
+            areas[move] = self.board.count_available_space_and_snake_data(self.head.get(move))
         # have some check to see when this is necessary and speed this up
         best_area = sorted(areas.items(), key=lambda e: (e[1][2], e[1][2] > e[1][1], e[1][1] > 0, -e[1][1], e[1][0]), reverse=True)[0][1]
         #  This is good, needs to go to a tail space over space with no tails.
@@ -142,7 +160,7 @@ class Snake:
         # {'s': [8, 0, 0], 't': [20, 0, 0], 'k': [9, 1, 0], 'e': [8, 3, 1], 'r': [4, 1, 1], 'o': [3, 0, 1], 'c': [8, 1, 2]}
 
         print(areas)
-        next_area = self.board.count_available_space(point)
+        next_area = self.board.count_available_space_and_snake_data(point)
         print(next_area, best_area)
 
         if(best_area == next_area):

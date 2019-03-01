@@ -44,25 +44,8 @@ class Board:
     def count_available_space(self, p):
         '''flood fill out from p and return the accessible area'''
         visited = []
-        heads = []
-        tails = []
-        space = self.rec_flood_fill_snake_data(p, visited, heads, tails)
-        return [space, len(heads), len(tails)]
+        return self.rec_flood_fill(p, visited)
     
-    def rec_flood_fill_snake_data(self, p, visited, heads, tails):
-        '''Recursive flood fill (Used by above method)'''
-        if p in visited or p in self.obstacles or self.is_outside(p):
-            if p in self.heads and p not in heads and p != self.player.head:
-                heads.append(p)
-            if p in self.tails and p not in tails:
-                tails.append(p)
-            return 0
-        visited.append(p)
-        return 1 + (self.rec_flood_fill_snake_data(p.left(), visited, heads, tails) + 
-                    self.rec_flood_fill_snake_data(p.right(), visited, heads, tails) + 
-                    self.rec_flood_fill_snake_data(p.up(), visited, heads, tails) + 
-                    self.rec_flood_fill_snake_data(p.down(), visited, heads, tails))
-
     def rec_flood_fill(self, p, visited):
         '''Recursive flood fill (Used by above method)'''
         if p in visited or p in self.obstacles or self.is_outside(p):
@@ -72,6 +55,28 @@ class Board:
                     self.rec_flood_fill(p.right(), visited) + 
                     self.rec_flood_fill(p.up(), visited) + 
                     self.rec_flood_fill(p.down(), visited))    
+
+    def count_available_space_and_snake_data(self, p):
+        '''flood fill out from p and return the accessible area, head, and tail count'''
+        visited = []
+        heads = []
+        tails = []
+        space = self.rec_flood_fill_with_snake_data(p, visited, heads, tails)
+        return [space, len(heads), len(tails)]
+
+    def rec_flood_fill_with_snake_data(self, p, visited, heads, tails):
+        '''Recursive flood fill that also counts the number of heads and tails'''
+        if p in visited or p in self.obstacles or self.is_outside(p):
+            if p in self.heads and p not in heads and p != self.player.head:
+                heads.append(p)
+            if p in self.tails and p not in tails:
+                tails.append(p)
+            return 0
+        visited.append(p)
+        return 1 + (self.rec_flood_fill_with_snake_data(p.left(), visited, heads, tails) + 
+                    self.rec_flood_fill_with_snake_data(p.right(), visited, heads, tails) + 
+                    self.rec_flood_fill_with_snake_data(p.up(), visited, heads, tails) + 
+                    self.rec_flood_fill_with_snake_data(p.down(), visited, heads, tails))
 
     def available_space(self, p):
         '''Same as above but return a list of the points'''
