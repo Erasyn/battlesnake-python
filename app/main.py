@@ -70,6 +70,11 @@ class Point:
         '''Get a list of the 4 surrounding points'''
         return [self.left(), self.right(), self.up(), self.down()]
 
+    def surrounding_eight(self):
+        '''Get a list of the 8 surrounding points'''
+        return [self.left(), self.right(), self.up(), self.down(), 
+                self.left().up(), self.left().down(), self.right().up(), self.right().down()]
+
     def direction_of(self, point):
         '''Returns (roughly) what direction a point is in'''
         if self.x < point.x: return 'right'
@@ -101,6 +106,7 @@ class Snake:
             self.body.append(Point(b['x'], b['y']))
 
         self.length = len(self.body)
+        self.next_move = ''
 
     # High level, composable actions the snake can perform
 
@@ -109,9 +115,13 @@ class Snake:
         if not self.eat_closest_food():
             debug('smart_movement: No path to food')
             self.smart_walk()
+            if not self.next_move:
+                self.walk()
         elif not self.is_smart_move(self.head.get(self.next_move)):
             debug('smart_movement: No smart move to food')
             self.smart_walk()
+            if not self.next_move:
+                self.walk()
 
     def eat_closest_food(self):
         '''High level goal to eat the food we are closest to. Returns False
@@ -119,6 +129,8 @@ class Snake:
         distances = self.board.distances(self.head, self.board.food)
         if distances:
             closest_food = point_from_string(min(distances, key=distances.get))
+            if(self.board.snakes_are_around_point(closest_food)):
+                return False
             return self.move_towards(closest_food)
         return False
 
@@ -229,6 +241,13 @@ class Snake:
         '''Returns True if moving here will put us in an area without any tails'''
         possible_moves = self.valid_moves()
 
+        for move in possible_moves:
+            p = self.head.get(move)
+            if self.board.is_threatened_by_enemy(p):
+                possible_moves.remove(move)
+            if self.health == 100 and self.food_adj_tail(p):
+                possible_moves.remove(move)
+
         if len(possible_moves) == 0:
             return
 
@@ -237,7 +256,7 @@ class Snake:
             areas[move] = self.board.count_available_space_and_snake_data(self.head.get(move))
         # have some check to see when this is necessary and speed this up
         # best_area = sorted(areas.items(), key=lambda e: (e[1][2], e[1][2] > e[1][1], e[1][0], e[1][1] > 0, -e[1][1]), reverse=True)[0][1]
-        best_area = sorted(areas.items(), key=lambda e: (e[1][1] == 0 and e[1][2] > 0 and e[1][0] > 4, e[1][2] - e[1][1], e[1][0]), reverse=True)[0][1]
+        best_area = sorted(areas.items(), key=lambda e: (e[1][1] == 0 and e[1][2] > 0 and e[1][0] > 4, e[1][2] - e[1][1], e[1][0]), reverse=True)[0]
         #  This is good, needs to go to a tail space over space with no tails.
         # print("best area", best_area)
         # tails > heads # heads == tails # tails > 0 # heads > 0 # max area
@@ -246,9 +265,11 @@ class Snake:
         print(areas)
         next_area = self.board.count_available_space_and_snake_data(point)
         print(next_area, best_area)
+        print(best_area[0])
 
-        if(best_area == next_area):
-            return False
+        for move in possible_moves:
+            if self.board.player.head.get(move) == point and best_area[1] == next_area:
+                return False
         return True
 
     def food_adj_tail(self, point):
@@ -269,6 +290,7 @@ class Board:
         self.heads = []
         self.tails = []
         self.tail_health = {}
+        self.snake_length = {}
 
         for snake_data in data['board']['snakes']:
             snake = Snake(self, snake_data)
@@ -276,7 +298,8 @@ class Board:
                 self.obstacles.append(Point(point['x'], point['y']))
             if snake.id != self.player.id:
                 self.enemies.append(snake)
-            self.heads.append(snake.head)
+                self.heads.append(snake.head)
+                self.snake_length[str(snake.head)] = snake.length
             self.tails.append(snake.tail)
             self.tail_health[str(snake.tail)] = snake.health
 
@@ -294,6 +317,12 @@ class Board:
             if p not in self.obstacles and not self.is_outside(p):
                 res.append(p)
         return res
+
+    def snakes_are_around_point(self, p):
+        for point in p.surrounding_eight():
+            if point in self.heads and self.snake_length[str(point)] >= self.player.length:
+                return True
+        return False
 
     def count_available_space(self, p):
         '''flood fill out from p and return the accessible area'''
