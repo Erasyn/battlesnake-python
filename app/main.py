@@ -10,7 +10,9 @@ def static(path):
 @bottle.post('/start')
 def start():
     return {
-        'color': '#000000'
+        "color": "#9932CC",
+        "headType":"",
+        "tailType":""
     }
 
 @bottle.post('/move')
