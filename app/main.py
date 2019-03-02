@@ -236,7 +236,8 @@ class Snake:
         for move in possible_moves:
             areas[move] = self.board.count_available_space_and_snake_data(self.head.get(move))
         # have some check to see when this is necessary and speed this up
-        best_area = sorted(areas.items(), key=lambda e: (e[1][2], e[1][2] > e[1][1], e[1][1] > 0, -e[1][1], e[1][0]), reverse=True)[0][1]
+        # best_area = sorted(areas.items(), key=lambda e: (e[1][2], e[1][2] > e[1][1], e[1][0], e[1][1] > 0, -e[1][1]), reverse=True)[0][1]
+        best_area = sorted(areas.items(), key=lambda e: (e[1][1] == 0 and e[1][2] > 0 and e[1][0] > 4, e[1][2] - e[1][1], e[1][0]), reverse=True)[0][1]
         #  This is good, needs to go to a tail space over space with no tails.
         # print("best area", best_area)
         # tails > heads # heads == tails # tails > 0 # heads > 0 # max area
