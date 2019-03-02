@@ -16,6 +16,7 @@ class Board:
         self.obstacles = []
         self.heads = []
         self.tails = []
+        self.tail_health = {}
 
         for snake_data in data['board']['snakes']:
             snake = Snake(self, snake_data)
@@ -25,6 +26,7 @@ class Board:
                 self.enemies.append(snake)
             self.heads.append(snake.head)
             self.tails.append(snake.tail)
+            self.tail_health[str(snake.tail)] = snake.health
 
         for p in data['board']['food']:
             self.food.append(Point(p['x'], p['y']))

@@ -101,8 +101,10 @@ class Snake:
         moves = ['up', 'down', 'left', 'right']
         for move in moves[:]:
             next_pos = self.head.get(move)
-            if (next_pos in self.board.obstacles or 
-                    self.board.is_outside(next_pos)):
+            if ((next_pos in self.board.obstacles or 
+                    self.board.is_outside(next_pos)) and
+                    (next_pos not in self.board.tails or
+                    self.board.tail_health.get(str(next_pos)) == 100)):
                 moves.remove(move)
         return moves
 
@@ -119,6 +121,8 @@ class Snake:
         '''Returns true if moving to the point is self-preserving. If False,
         the move won't kill you now, but it might or might in the future.'''
         if self.board.is_threatened_by_enemy(point):
+            return False
+        if self.board.player.health == 100 and self.food_adj_tail(point):
             return False
         if self.is_not_trapped_with_no_out(point):
             return False
@@ -166,3 +170,6 @@ class Snake:
         if(best_area == next_area):
             return False
         return True
+
+    def food_adj_tail(self, point):
+        return (point in self.board.food) and (point in self.board.player.tail.surrounding_four())
